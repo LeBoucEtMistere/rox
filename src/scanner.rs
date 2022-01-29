@@ -32,8 +32,8 @@ impl<'a> Scanner<'a> {
                 Ok(r) => {
                     // if we have a token to add, add it
                     // this can be None for some reasons, for instance finding whitespaces
-                    if let Some(token_type) = r {
-                        self.add_token(token_type)
+                    if let Some(token) = r {
+                        self.tokens.push(token)
                     }
                 }
                 Err(e) => errors_encountered.push(e),
@@ -48,37 +48,49 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    fn scan_token(&mut self) -> InternalRoxResult<Option<TokenType>> {
+    fn scan_token(&mut self) -> InternalRoxResult<Option<Token>> {
         match self.advance() {
-            '(' => Ok(Some(TokenType::LeftParen)),
-            ')' => Ok(Some(TokenType::RightParen)),
-            '{' => Ok(Some(TokenType::LeftBrace)),
-            '}' => Ok(Some(TokenType::RightBrace)),
-            ',' => Ok(Some(TokenType::Comma)),
-            '.' => Ok(Some(TokenType::Dot)),
-            '-' => Ok(Some(TokenType::Minus)),
-            '+' => Ok(Some(TokenType::Plus)),
-            ';' => Ok(Some(TokenType::Semicolon)),
-            '*' => Ok(Some(TokenType::Star)),
-            '!' => Ok(Some(if self.advance_if_equal('=') {
-                TokenType::BangEqual
-            } else {
-                TokenType::Bang
+            '(' => Ok(Some(self.build_simple_token(TokenType::LeftParen))),
+            ')' => Ok(Some(self.build_simple_token(TokenType::RightParen))),
+            '{' => Ok(Some(self.build_simple_token(TokenType::LeftBrace))),
+            '}' => Ok(Some(self.build_simple_token(TokenType::RightBrace))),
+            ',' => Ok(Some(self.build_simple_token(TokenType::Comma))),
+            '.' => Ok(Some(self.build_simple_token(TokenType::Dot))),
+            '-' => Ok(Some(self.build_simple_token(TokenType::Minus))),
+            '+' => Ok(Some(self.build_simple_token(TokenType::Plus))),
+            ';' => Ok(Some(self.build_simple_token(TokenType::Semicolon))),
+            '*' => Ok(Some(self.build_simple_token(TokenType::Star))),
+            '!' => Ok(Some({
+                let tt = if self.advance_if_equal('=') {
+                    TokenType::BangEqual
+                } else {
+                    TokenType::Bang
+                };
+                self.build_simple_token(tt)
             })),
-            '=' => Ok(Some(if self.advance_if_equal('=') {
-                TokenType::EqualEqual
-            } else {
-                TokenType::Equal
+            '=' => Ok(Some({
+                let tt = if self.advance_if_equal('=') {
+                    TokenType::EqualEqual
+                } else {
+                    TokenType::Equal
+                };
+                self.build_simple_token(tt)
             })),
-            '<' => Ok(Some(if self.advance_if_equal('=') {
-                TokenType::LessEqual
-            } else {
-                TokenType::Less
+            '<' => Ok(Some({
+                let tt = if self.advance_if_equal('=') {
+                    TokenType::LessEqual
+                } else {
+                    TokenType::Less
+                };
+                self.build_simple_token(tt)
             })),
-            '>' => Ok(Some(if self.advance_if_equal('=') {
-                TokenType::GreateEqual
-            } else {
-                TokenType::Greater
+            '>' => Ok(Some({
+                let tt = if self.advance_if_equal('=') {
+                    TokenType::GreateEqual
+                } else {
+                    TokenType::Greater
+                };
+                self.build_simple_token(tt)
             })),
             '/' => Ok(if self.advance_if_equal('/') {
                 // A comment goes until the end of the line.
@@ -91,8 +103,9 @@ impl<'a> Scanner<'a> {
                 }
                 None
             } else {
-                Some(TokenType::Slash)
+                Some(self.build_simple_token(TokenType::Slash))
             }),
+            '"' => self.scan_string(),
             ' ' => Ok(None),
             '\r' => Ok(None),
             '\t' => Ok(None),
@@ -105,6 +118,56 @@ impl<'a> Scanner<'a> {
                 message: "Unexpected character".into(),
             }),
         }
+    }
+
+    fn build_simple_token(&self, token_type: TokenType) -> Token {
+        Token::new(
+            token_type,
+            self.source
+                .chars()
+                .skip(self.start)
+                .take(self.current - self.start)
+                .collect(),
+            self.line,
+        )
+    }
+
+    fn build_complex_token(&self, token_type: TokenType, lexeme: String) -> Token {
+        Token::new(token_type, lexeme, self.line)
+    }
+
+    fn scan_string(&mut self) -> InternalRoxResult<Option<Token>> {
+        while let Some(c) = self.peek() {
+            if c == '"' {
+                break;
+            }
+            if c == '\n' {
+                self.line += 1
+            };
+            self.advance();
+        }
+
+        if self.peek().is_none() {
+            return Err(InternalRoxError::SyntaxError {
+                line: self.line,
+                message: "Unterminated string.".into(),
+            });
+        }
+
+        // The closing ".
+        self.advance();
+
+        // Trim the surrounding quotes when building the lexeme in the token.
+        Ok(Some(
+            self.build_complex_token(
+                TokenType::String,
+                self.source
+                    .chars()
+                    .skip(self.start + 1)
+                    .take(self.current - self.start - 2)
+                    .collect(),
+            ),
+        ))
     }
 
     /// return the current char in source and advance cursor by one
@@ -129,18 +192,6 @@ impl<'a> Scanner<'a> {
 
     fn peek(&self) -> Option<char> {
         self.source.chars().nth(self.current)
-    }
-
-    fn add_token(&mut self, token_type: TokenType) {
-        self.tokens.push(Token::new(
-            token_type,
-            self.source
-                .chars()
-                .skip(self.start)
-                .take(self.current - self.start)
-                .collect(),
-            self.line,
-        ))
     }
 }
 
@@ -171,7 +222,7 @@ mod test {
         let input = "// this is a comment
         (( )){} // grouping stuff
         !*+-/=<> <= ==   // operators
-        ";
+        /";
         let s = Scanner::new(input);
         let a = s.scan_tokens().unwrap();
         assert_eq!(
@@ -193,6 +244,7 @@ mod test {
                 Token::new(TokenType::Greater, ">".into(), 2),
                 Token::new(TokenType::LessEqual, "<=".into(), 2),
                 Token::new(TokenType::EqualEqual, "==".into(), 2),
+                Token::new(TokenType::Slash, "/".into(), 3),
                 Token::new(TokenType::Eof, "".into(), 3),
             ]
         );
