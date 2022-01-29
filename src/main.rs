@@ -1,6 +1,7 @@
+mod error;
 mod interpreter;
 
-use std::error::Error;
+use std::process;
 
 use camino::Utf8PathBuf;
 use clap::Parser;
@@ -19,7 +20,7 @@ pub struct App {
     file_to_run: Option<Utf8PathBuf>,
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() {
     let opts = App::parse();
 
     // build logger
@@ -31,10 +32,18 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
     builder.init();
 
-    let interpreter = Interpreter {};
+    let mut interpreter = Interpreter::default();
     if let Some(file_to_run) = opts.file_to_run {
-        interpreter.run_file(file_to_run)
-    } else {
-        interpreter.run_prompt()
+        if let Err(e) = interpreter.run_file(file_to_run) {
+            eprintln!("{}", e);
+            process::exit(65);
+        }
+        process::exit(0)
     }
+
+    if let Err(e) = interpreter.run_prompt() {
+        eprintln!("{}", e);
+        process::exit(65);
+    }
+    process::exit(0);
 }

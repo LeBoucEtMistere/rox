@@ -1,15 +1,19 @@
 use std::{
-    error::Error,
     fs::File,
     io::{self, BufReader, Read, Write},
 };
 
 use camino::Utf8PathBuf;
 
-pub struct Interpreter {}
+use crate::error::*;
+
+#[derive(Default)]
+pub struct Interpreter {
+    had_error: bool,
+}
 
 impl Interpreter {
-    pub fn run_file(&self, file_path: Utf8PathBuf) -> Result<(), Box<dyn Error>> {
+    pub fn run_file(&mut self, file_path: Utf8PathBuf) -> RoxResult<()> {
         let f = File::open(file_path)?;
         let mut buffer = String::new();
         let mut reader = BufReader::new(f);
@@ -17,7 +21,7 @@ impl Interpreter {
         self.run(&buffer)
     }
 
-    pub fn run_prompt(&self) -> Result<(), Box<dyn Error>> {
+    pub fn run_prompt(&mut self) -> RoxResult<()> {
         let stdin = io::stdin(); // We get `Stdin` here.
 
         loop {
@@ -34,14 +38,34 @@ impl Interpreter {
 
             match buffer.trim_end() {
                 "exit" | "exit()" | "quit" | "quit()" => break,
-                a => self.run(a)?,
+                a => {
+                    let r = self.run(a);
+                    if let Err(err @ RoxError::SyntaxError { .. }) = r {
+                        eprintln!("{}", err);
+                        self.reset_error();
+                    }
+                }
             }
         }
         Ok(())
     }
 
-    fn run(&self, buffer: &str) -> Result<(), Box<dyn Error>> {
-        println!("{}", buffer);
-        Ok(())
+    fn emit_syntax_error(&mut self, line: usize, message: String) -> RoxError {
+        self.had_error = true;
+        RoxError::SyntaxError { line, message }
+    }
+
+    fn reset_error(&mut self) {
+        self.had_error = false;
+    }
+
+    fn run(&mut self, buffer: &str) -> RoxResult<()> {
+        match buffer {
+            "crash" => Err(self.emit_syntax_error(0, "blablabla".into())),
+            _ => {
+                println!("{}", buffer);
+                Ok(())
+            }
+        }
     }
 }
