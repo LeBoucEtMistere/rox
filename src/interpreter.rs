@@ -5,7 +5,7 @@ use std::{
 
 use camino::Utf8PathBuf;
 
-use crate::error::*;
+use crate::{error::*, scanner::Scanner};
 
 #[derive(Default)]
 pub struct Interpreter {
@@ -13,7 +13,7 @@ pub struct Interpreter {
 }
 
 impl Interpreter {
-    pub fn run_file(&mut self, file_path: Utf8PathBuf) -> RoxResult<()> {
+    pub fn run_file(&mut self, file_path: Utf8PathBuf) -> FacingRoxResult<()> {
         let f = File::open(file_path)?;
         let mut buffer = String::new();
         let mut reader = BufReader::new(f);
@@ -21,7 +21,7 @@ impl Interpreter {
         self.run(&buffer)
     }
 
-    pub fn run_prompt(&mut self) -> RoxResult<()> {
+    pub fn run_prompt(&mut self) -> FacingRoxResult<()> {
         let stdin = io::stdin(); // We get `Stdin` here.
 
         loop {
@@ -40,7 +40,8 @@ impl Interpreter {
                 "exit" | "exit()" | "quit" | "quit()" => break,
                 a => {
                     let r = self.run(a);
-                    if let Err(err @ RoxError::SyntaxError { .. }) = r {
+
+                    if let Err(err) = r {
                         eprintln!("{}", err);
                         self.reset_error();
                     }
@@ -50,22 +51,43 @@ impl Interpreter {
         Ok(())
     }
 
-    fn emit_syntax_error(&mut self, line: usize, message: String) -> RoxError {
-        self.had_error = true;
-        RoxError::SyntaxError { line, message }
+    fn process_result<T>(&mut self, result: Result<T, InternalRoxError>) -> FacingRoxResult<T> {
+        result.map_err(|e| {
+            self.had_error = true;
+            eprintln!("{}", e);
+            match e {
+                InternalRoxError::SyntaxError { .. } => FacingRoxError::SyntaxError,
+            }
+        })
+    }
+    fn process_result_vec<T>(
+        &mut self,
+        result: Result<T, Vec<InternalRoxError>>,
+    ) -> FacingRoxResult<T> {
+        result.map_err(|errs| {
+            self.had_error = true;
+            for e in &errs {
+                eprintln!("{}", e);
+            }
+            match errs[0] {
+                InternalRoxError::SyntaxError { .. } => FacingRoxError::SyntaxError,
+            }
+        })
     }
 
     fn reset_error(&mut self) {
         self.had_error = false;
     }
 
-    fn run(&mut self, buffer: &str) -> RoxResult<()> {
-        match buffer {
-            "crash" => Err(self.emit_syntax_error(0, "blablabla".into())),
-            _ => {
-                println!("{}", buffer);
-                Ok(())
-            }
+    fn run(&mut self, buffer: &str) -> FacingRoxResult<()> {
+        let scanner = Scanner::new(buffer);
+        let tokens = self.process_result_vec(scanner.scan_tokens())?;
+
+        if self.had_error {}
+
+        for token in tokens {
+            println!("{:?}", token);
         }
+        Ok(())
     }
 }

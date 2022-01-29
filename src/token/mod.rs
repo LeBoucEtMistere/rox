@@ -2,7 +2,7 @@ mod token_type;
 
 pub use token_type::TokenType;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Token {
     token_type: TokenType,
     lexeme: String,
