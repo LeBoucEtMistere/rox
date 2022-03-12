@@ -2,6 +2,26 @@ use crate::{
     error::{InternalRoxError, InternalRoxResult},
     token::{Token, TokenType},
 };
+use phf::phf_map;
+
+static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
+    "and" => TokenType::And,
+    "class" => TokenType::Class,
+    "else" => TokenType::Else,
+    "false" => TokenType::False,
+    "for" => TokenType::For,
+    "fun" => TokenType::Fun,
+    "if" => TokenType::If,
+    "nil" => TokenType::Nil,
+    "or" => TokenType::Or,
+    "print" => TokenType::Print,
+    "return" => TokenType::Return,
+    "super" => TokenType::Super,
+    "this" => TokenType::This,
+    "true" => TokenType::True,
+    "while" => TokenType::While,
+    "var" => TokenType::Var,
+};
 
 pub struct Scanner<'a> {
     source: &'a str,
@@ -114,6 +134,7 @@ impl<'a> Scanner<'a> {
                 Ok(None)
             }
             '0'..='9' => self.scan_number(),
+            'a'..='z' | 'A'..='Z' | '_' => self.scan_identifier(),
             _ => Err(InternalRoxError::SyntaxError {
                 line: self.line,
                 message: "Unexpected character".into(),
@@ -124,11 +145,7 @@ impl<'a> Scanner<'a> {
     fn build_simple_token(&self, token_type: TokenType) -> Token {
         Token::new(
             token_type,
-            self.source
-                .chars()
-                .skip(self.start)
-                .take(self.current - self.start)
-                .collect(),
+            self.source[self.start..self.current].to_owned(),
             self.line,
         )
     }
@@ -159,16 +176,10 @@ impl<'a> Scanner<'a> {
         self.advance();
 
         // Trim the surrounding quotes when building the lexeme in the token.
-        Ok(Some(
-            self.build_complex_token(
-                TokenType::String,
-                self.source
-                    .chars()
-                    .skip(self.start + 1)
-                    .take(self.current - self.start - 2)
-                    .collect(),
-            ),
-        ))
+        Ok(Some(self.build_complex_token(
+            TokenType::String,
+            self.source[self.start + 1..self.current - 1].to_owned(),
+        )))
     }
 
     fn scan_number(&mut self) -> InternalRoxResult<Option<Token>> {
@@ -185,16 +196,23 @@ impl<'a> Scanner<'a> {
             }
         }
 
-        Ok(Some(
-            self.build_complex_token(
-                TokenType::Number,
-                self.source
-                    .chars()
-                    .skip(self.start)
-                    .take(self.current - self.start)
-                    .collect(),
-            ),
-        ))
+        Ok(Some(self.build_complex_token(
+            TokenType::Number,
+            self.source[self.start..self.current].to_owned(),
+        )))
+    }
+
+    fn scan_identifier(&mut self) -> InternalRoxResult<Option<Token>> {
+        while Scanner::is_alphanumeric(self.peek()) {
+            self.advance();
+        }
+        let text = &self.source[self.start..self.current];
+
+        Ok(Some(if let Some(token_type) = KEYWORDS.get(text) {
+            self.build_complex_token(*token_type, text.to_owned())
+        } else {
+            self.build_complex_token(TokenType::Identifier, text.to_owned())
+        }))
     }
 
     /// return the current char in source and advance cursor by one
@@ -232,6 +250,18 @@ impl<'a> Scanner<'a> {
     fn is_digit(c: Option<char>) -> bool {
         matches!(c, Some('0'..='9'))
     }
+
+    /// helper to check if a character is alpha
+    #[inline]
+    fn is_alpha(c: Option<char>) -> bool {
+        matches!(c, Some('a'..='z' | 'A'..='Z' | '_'))
+    }
+
+    /// helper to check if a character is alphanumeric
+    #[inline]
+    fn is_alphanumeric(c: Option<char>) -> bool {
+        Scanner::is_alpha(c) || Scanner::is_digit(c)
+    }
 }
 
 #[cfg(test)]
@@ -263,6 +293,9 @@ mod test {
         !*+-/=<> <= ==   // operators
         1234.567098 +23
         42
+        \"aaaaaa\"
+        or
+        baba_is_you
         /";
         let s = Scanner::new(input);
         let a = s.scan_tokens().unwrap();
@@ -289,8 +322,11 @@ mod test {
                 Token::new(TokenType::Plus, "+".into(), 3),
                 Token::new(TokenType::Number, "23".into(), 3),
                 Token::new(TokenType::Number, "42".into(), 4),
-                Token::new(TokenType::Slash, "/".into(), 5),
-                Token::new(TokenType::Eof, "".into(), 5),
+                Token::new(TokenType::String, "aaaaaa".into(), 5),
+                Token::new(TokenType::Or, "or".into(), 6),
+                Token::new(TokenType::Identifier, "baba_is_you".into(), 7),
+                Token::new(TokenType::Slash, "/".into(), 8),
+                Token::new(TokenType::Eof, "".into(), 8),
             ]
         );
     }
