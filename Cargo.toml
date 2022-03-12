@@ -12,6 +12,8 @@ log = "0.4"
 env_logger = "0.9"
 thiserror = "1.0"
 phf = { version = "0.10", features = ["macros"] }
+strum = "0.24"
+strum_macros = "0.24"
 
 [dev-dependencies]
 assert_cmd = "2.0"

@@ -1,4 +1,6 @@
-#[derive(Debug, PartialEq, Clone, Copy)]
+use strum_macros::AsRefStr;
+
+#[derive(Debug, PartialEq, Clone, Copy, AsRefStr)]
 pub enum TokenType {
     // Single-character tokens.
     LeftParen,
