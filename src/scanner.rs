@@ -113,6 +113,7 @@ impl<'a> Scanner<'a> {
                 self.line += 1;
                 Ok(None)
             }
+            '0'..='9' => self.scan_number(),
             _ => Err(InternalRoxError::SyntaxError {
                 line: self.line,
                 message: "Unexpected character".into(),
@@ -170,6 +171,32 @@ impl<'a> Scanner<'a> {
         ))
     }
 
+    fn scan_number(&mut self) -> InternalRoxResult<Option<Token>> {
+        while Scanner::is_digit(self.peek()) {
+            self.advance();
+        }
+
+        if self.peek() == Some('.') && Scanner::is_digit(self.peek_next()) {
+            // Consume the "."
+            self.advance();
+
+            while Scanner::is_digit(self.peek()) {
+                self.advance();
+            }
+        }
+
+        Ok(Some(
+            self.build_complex_token(
+                TokenType::Number,
+                self.source
+                    .chars()
+                    .skip(self.start)
+                    .take(self.current - self.start)
+                    .collect(),
+            ),
+        ))
+    }
+
     /// return the current char in source and advance cursor by one
     fn advance(&mut self) -> char {
         self.current += 1;
@@ -190,8 +217,20 @@ impl<'a> Scanner<'a> {
         true
     }
 
+    /// peek the current character in the source
     fn peek(&self) -> Option<char> {
         self.source.chars().nth(self.current)
+    }
+
+    /// peek the next character in source
+    fn peek_next(&self) -> Option<char> {
+        self.source.chars().nth(self.current + 1)
+    }
+
+    /// helper to check if a character is a digit
+    #[inline]
+    fn is_digit(c: Option<char>) -> bool {
+        matches!(c, Some('0'..='9'))
     }
 }
 
@@ -222,6 +261,8 @@ mod test {
         let input = "// this is a comment
         (( )){} // grouping stuff
         !*+-/=<> <= ==   // operators
+        1234.567098 +23
+        42
         /";
         let s = Scanner::new(input);
         let a = s.scan_tokens().unwrap();
@@ -244,8 +285,12 @@ mod test {
                 Token::new(TokenType::Greater, ">".into(), 2),
                 Token::new(TokenType::LessEqual, "<=".into(), 2),
                 Token::new(TokenType::EqualEqual, "==".into(), 2),
-                Token::new(TokenType::Slash, "/".into(), 3),
-                Token::new(TokenType::Eof, "".into(), 3),
+                Token::new(TokenType::Number, "1234.567098".into(), 3),
+                Token::new(TokenType::Plus, "+".into(), 3),
+                Token::new(TokenType::Number, "23".into(), 3),
+                Token::new(TokenType::Number, "42".into(), 4),
+                Token::new(TokenType::Slash, "/".into(), 5),
+                Token::new(TokenType::Eof, "".into(), 5),
             ]
         );
     }
