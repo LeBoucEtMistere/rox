@@ -1,4 +1,3 @@
-use std::convert::AsRef;
 use std::ops::Deref;
 
 use super::{Binary, Expr, ExprVisitor, Grouping, Literal, Unary};
