@@ -1,8 +1,10 @@
 use std::ops::Deref;
 
-use super::{Binary, Expr, ExprVisitor, Grouping, Literal, Unary};
+use crate::ast::expression::{Binary, Expr, Grouping, Literal, Unary};
 
-struct ASTPrinter {}
+use super::ExprVisitor;
+
+pub struct ASTPrinter {}
 
 impl ExprVisitor for ASTPrinter {
     type Return = String;
@@ -28,9 +30,12 @@ impl ExprVisitor for ASTPrinter {
 }
 
 impl ASTPrinter {
+    /// Render an AST in a simple String
     pub fn print(&self, expr: Expr) -> String {
         expr.accept(self)
     }
+
+    /// Helper function to properly parenthesizes levels of the AST
     fn parenthesize(&self, op_name: &str, exprs: &[impl Deref<Target = Expr>]) -> String {
         let mut output = String::new();
         output.push('(');
@@ -48,41 +53,37 @@ impl ASTPrinter {
 #[cfg(test)]
 mod test {
     use super::ASTPrinter;
-    use crate::token::{Token, TokenType};
+    use crate::{
+        ast::expression::Expr,
+        token::{Token, TokenType},
+    };
 
-    use super::super::{Binary, Expr, Grouping, Literal, Unary};
     #[test]
     fn basic_test() {
-        let expr = Expr::Binary(Binary {
-            left: Box::new(Expr::Unary(Unary {
-                op: Token {
+        let expr = Expr::new_binary(
+            Expr::new_unary(
+                Token {
                     token_type: TokenType::Minus,
                     lexeme: "-".into(),
                     line: 0,
                 },
-                expr: Box::new(Expr::Literal(Literal {
-                    value: Token {
-                        token_type: TokenType::Number,
-                        lexeme: "123".into(),
-                        line: 0,
-                    },
-                })),
-            })),
-            op: Token {
+                Expr::new_literal(Token {
+                    token_type: TokenType::Number,
+                    lexeme: "123".into(),
+                    line: 0,
+                }),
+            ),
+            Token {
                 token_type: TokenType::Star,
                 lexeme: "*".into(),
                 line: 0,
             },
-            right: Box::new(Expr::Grouping(Grouping {
-                expr: Box::new(Expr::Literal(Literal {
-                    value: Token {
-                        token_type: TokenType::Number,
-                        lexeme: "45.67".into(),
-                        line: 0,
-                    },
-                })),
+            Expr::new_grouping(Expr::new_literal(Token {
+                token_type: TokenType::Number,
+                lexeme: "45.67".into(),
+                line: 0,
             })),
-        });
+        );
 
         assert_eq!(ASTPrinter {}.print(expr), "(* (- 123) (group 45.67))");
     }
