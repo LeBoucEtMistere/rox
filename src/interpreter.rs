@@ -5,7 +5,7 @@ use std::{
 
 use camino::Utf8PathBuf;
 
-use crate::{ast::visitor::ASTPrinter, error::*, parser::Parser, scanner::Scanner};
+use crate::{ast::visitor::ASTPrettyPrinter, error::*, parser::Parser, scanner::Scanner};
 
 #[derive(Default)]
 pub struct Interpreter {
@@ -88,7 +88,7 @@ impl Interpreter {
         let p = Parser::new(tokens);
         let ast = p.parse();
 
-        println!("{}", ASTPrinter {}.print(ast));
+        println!("{}", ASTPrettyPrinter::new().print(&ast));
 
         Ok(())
     }

@@ -4,47 +4,64 @@ use crate::ast::expression::{Binary, Expr, Grouping, Literal, Unary};
 
 use super::ExprVisitor;
 
-pub struct ASTPrinter {}
+pub struct ASTPrettyPrinter {
+    indent_lvl: usize,
+}
 
-impl ExprVisitor for ASTPrinter {
+impl ExprVisitor for ASTPrettyPrinter {
     type Return = String;
 
     fn visit_unary(&mut self, unary: &Unary) -> Self::Return {
-        self.parenthesize(&unary.op.lexeme, std::slice::from_ref(&unary.expr))
+        self.format(&unary.op.lexeme, std::slice::from_ref(&unary.expr))
     }
 
     fn visit_binary(&mut self, binary: &Binary) -> Self::Return {
-        self.parenthesize(
+        self.format(
             &binary.op.lexeme,
             &[binary.left.as_ref(), binary.right.as_ref()],
         )
     }
 
     fn visit_grouping(&mut self, grouping: &Grouping) -> Self::Return {
-        self.parenthesize("group", std::slice::from_ref(&grouping.expr))
+        self.format("group", std::slice::from_ref(&grouping.expr))
     }
 
     fn visit_literal(&mut self, literal: &Literal) -> Self::Return {
-        literal.value.lexeme.to_string()
+        let mut output = String::new();
+        if self.indent_lvl > 0 {
+            output.push_str(&"│  ".repeat(self.indent_lvl - 1));
+            output.push_str("└─ ");
+        }
+
+        output.push_str(&literal.value.lexeme);
+        output
     }
 }
 
-impl ASTPrinter {
-    /// Render an AST in a simple String
+impl ASTPrettyPrinter {
+    pub fn new() -> Self {
+        ASTPrettyPrinter { indent_lvl: 0 }
+    }
+    /// Render an AST in a pretty printed fashion String
     pub fn print(&mut self, expr: &Expr) -> String {
         expr.accept(self)
     }
 
-    /// Helper function to properly parenthesizes levels of the AST
-    fn parenthesize(&mut self, op_name: &str, exprs: &[impl Deref<Target = Expr>]) -> String {
+    /// Helper function to properly indent levels of the AST
+    fn format(&mut self, op_name: &str, children: &[impl Deref<Target = Expr>]) -> String {
         let mut output = String::new();
-        output.push('(');
-        output.push_str(op_name);
-        for expr in exprs {
-            output.push(' ');
-            output.push_str(&expr.accept(self))
+        if self.indent_lvl > 0 {
+            output.push_str(&"│  ".repeat(self.indent_lvl - 1));
+            output.push_str("└─ ");
         }
-        output.push(')');
+
+        output.push_str(op_name);
+        self.indent_lvl += 1;
+        for expr in children {
+            output.push('\n');
+            output.push_str(&expr.accept(self));
+        }
+        self.indent_lvl -= 1;
 
         output
     }
@@ -52,7 +69,7 @@ impl ASTPrinter {
 
 #[cfg(test)]
 mod test {
-    use super::ASTPrinter;
+    use super::ASTPrettyPrinter;
     use crate::{
         ast::expression::Expr,
         token::{Token, TokenType},
@@ -85,6 +102,9 @@ mod test {
             })),
         );
 
-        assert_eq!(ASTPrinter {}.print(&expr), "(* (- 123) (group 45.67))");
+        assert_eq!(
+            ASTPrettyPrinter::new().print(&expr),
+            "*\n└─ -\n│  └─ 123\n└─ group\n│  └─ 45.67"
+        );
     }
 }

@@ -1,5 +1,7 @@
+mod ast_pretty_printer;
 mod ast_printer;
 
+pub use ast_pretty_printer::ASTPrettyPrinter;
 pub use ast_printer::ASTPrinter;
 
 use super::expression::{Binary, Grouping, Literal, Unary};
@@ -9,11 +11,11 @@ pub trait ExprVisitor {
     type Return;
 
     /// Visit an unary expression
-    fn visit_unary(&self, unary: &Unary) -> Self::Return;
+    fn visit_unary(&mut self, unary: &Unary) -> Self::Return;
     /// Visit a binary expression
-    fn visit_binary(&self, binary: &Binary) -> Self::Return;
+    fn visit_binary(&mut self, binary: &Binary) -> Self::Return;
     /// Visit a grouping expression
-    fn visit_grouping(&self, grouping: &Grouping) -> Self::Return;
+    fn visit_grouping(&mut self, grouping: &Grouping) -> Self::Return;
     /// Visit a literal expression
-    fn visit_literal(&self, literal: &Literal) -> Self::Return;
+    fn visit_literal(&mut self, literal: &Literal) -> Self::Return;
 }

@@ -29,7 +29,7 @@ pub struct Literal {
 }
 
 impl Expr {
-    pub(super) fn accept<T>(&self, visitor: &dyn ExprVisitor<Return = T>) -> T {
+    pub(super) fn accept<T>(&self, visitor: &mut dyn ExprVisitor<Return = T>) -> T {
         match self {
             Expr::Unary(unary) => visitor.visit_unary(unary),
             Expr::Binary(binary) => visitor.visit_binary(binary),
