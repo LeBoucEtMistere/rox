@@ -4,7 +4,6 @@ mod interpreter;
 mod parser;
 mod scanner;
 mod token;
-
 use std::process;
 
 use camino::Utf8PathBuf;
@@ -20,7 +19,8 @@ pub struct App {
     #[clap(long, short, global = true, parse(from_occurrences))]
     verbose: usize,
 
-    /// optional path to file to interpret, if none is specified, REPL interpreter starts
+    /// optional path to file to interpret, if none is specified, REPL
+    /// interpreter starts
     file_to_run: Option<Utf8PathBuf>,
 }
 

@@ -1,5 +1,4 @@
-use assert_cmd::prelude::*;
-use assert_cmd::Command;
+use assert_cmd::{prelude::*, Command};
 
 #[test]
 fn test_prompt_exits_correctly() {

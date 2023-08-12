@@ -1,8 +1,9 @@
+use phf::phf_map;
+
 use crate::{
     error::{InternalRoxError, InternalRoxResult},
     token::{Token, TokenType},
 };
-use phf::phf_map;
 
 static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "and" => TokenType::And,
@@ -266,12 +267,11 @@ impl<'a> Scanner<'a> {
 
 #[cfg(test)]
 mod test {
+    use super::Scanner;
     use crate::{
         error::InternalRoxError,
         token::{Token, TokenType},
     };
-
-    use super::Scanner;
 
     #[test]
     fn test_simple() {

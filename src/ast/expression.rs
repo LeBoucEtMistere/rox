@@ -1,6 +1,5 @@
-use crate::token::Token;
-
 use super::visitor::ExprVisitor;
+use crate::token::Token;
 
 /// Base structure of the AST
 pub enum Expr {

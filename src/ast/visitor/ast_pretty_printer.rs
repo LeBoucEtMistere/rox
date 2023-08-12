@@ -1,8 +1,7 @@
 use std::ops::Deref;
 
-use crate::ast::expression::{Binary, Expr, Grouping, Literal, Unary};
-
 use super::ExprVisitor;
+use crate::ast::expression::{Binary, Expr, Grouping, Literal, Unary};
 
 pub struct ASTPrettyPrinter {
     indent_lvl: usize,

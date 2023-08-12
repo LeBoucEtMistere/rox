@@ -1,5 +1,7 @@
-use crate::ast::Expr;
-use crate::token::{Token, TokenType};
+use crate::{
+    ast::Expr,
+    token::{Token, TokenType},
+};
 
 /// Implements the parsing of tokens obtained from the scanner into an AST,
 /// based on the rules of the following grammer:
