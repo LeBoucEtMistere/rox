@@ -5,6 +5,7 @@ use crate::{
     token::{Token, TokenType},
 };
 
+/// Perfect HashMap mapping string keywords to their token type
 static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "and" => TokenType::And,
     "class" => TokenType::Class,
@@ -24,31 +25,44 @@ static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "var" => TokenType::Var,
 };
 
+/// Scanner is responsible from scanning the lexemes into a list of Tokens. This is the first step
+/// of the interpreter
 pub struct Scanner<'a> {
-    source: &'a str,
+    /// holds a reference to the source buffer containing the lexemes to scan
+    source_buffer: &'a str,
+    /// internal state: holds the built tokens
     tokens: Vec<Token>,
 
-    start: usize,
-    current: usize,
-    line: usize,
+    /// internal state: start index in the source of the token being scanned
+    start_index: usize,
+    /// internal state: index in the source of the lexeme being scanned
+    current_index: usize,
+    /// internal state: index of the line being scanned
+    line_index: usize,
 }
 
 impl<'a> Scanner<'a> {
-    pub fn new(source: &'a str) -> Scanner {
-        Scanner {
-            source,
+    /// Create a new Scanner object from a reference to a source buffer
+    pub fn new(source_buffer: &'a str) -> Self {
+        Self {
+            source_buffer,
             tokens: vec![],
-            start: 0,
-            current: 0,
-            line: 0,
+            start_index: 0,
+            current_index: 0,
+            line_index: 0,
         }
     }
 
+    /// Main entry point of the scanner logic. Processes the passed lexemes to build a list of
+    /// tokens out of it.
+    ///
+    /// If any errors are encountered during the scanning process, returns them here.
     pub fn scan_tokens(mut self) -> Result<Vec<Token>, Vec<InternalRoxError>> {
         let mut errors_encountered: Vec<InternalRoxError> = Vec::new();
 
-        while self.current < self.source.len() {
-            self.start = self.current;
+        while self.current_index < self.source_buffer.len() {
+            // starting scanning for a new token, reset the start index
+            self.start_index = self.current_index;
             match self.scan_token() {
                 Ok(r) => {
                     // if we have a token to add, add it
@@ -62,13 +76,14 @@ impl<'a> Scanner<'a> {
         }
         if errors_encountered.is_empty() {
             self.tokens
-                .push(Token::new(TokenType::Eof, String::new(), self.line));
+                .push(Token::new(TokenType::Eof, String::new(), self.line_index));
             Ok(self.tokens)
         } else {
             Err(errors_encountered)
         }
     }
 
+    /// Method responsible for the actual scanning of a token
     fn scan_token(&mut self) -> InternalRoxResult<Option<Token>> {
         match self.advance() {
             '(' => Ok(Some(self.build_simple_token(TokenType::LeftParen))),
@@ -131,44 +146,53 @@ impl<'a> Scanner<'a> {
             '\r' => Ok(None),
             '\t' => Ok(None),
             '\n' => {
-                self.line += 1;
+                self.line_index += 1;
                 Ok(None)
             }
             '0'..='9' => self.scan_number(),
             'a'..='z' | 'A'..='Z' | '_' => self.scan_identifier(),
+            // TODO: Improve error handling
             _ => Err(InternalRoxError::SyntaxError {
-                line: self.line,
+                line: self.line_index,
                 message: "Unexpected character".into(),
             }),
         }
     }
 
+    /// Build a simple token representing the source_buffer lexemes in the interval
+    /// `[self.start_index..self.current_index]`
     fn build_simple_token(&self, token_type: TokenType) -> Token {
         Token::new(
             token_type,
-            self.source[self.start..self.current].to_owned(),
-            self.line,
+            self.source_buffer[self.start_index..self.current_index].to_owned(),
+            self.line_index,
         )
     }
 
+    /// Build a complex token out of a specified lexeme string
     fn build_complex_token(&self, token_type: TokenType, lexeme: String) -> Token {
-        Token::new(token_type, lexeme, self.line)
+        Token::new(token_type, lexeme, self.line_index)
     }
 
+    /// Scan the internal buffer from the current token until a string ending delimiter lexeme is
+    /// found
     fn scan_string(&mut self) -> InternalRoxResult<Option<Token>> {
         while let Some(c) = self.peek() {
             if c == '"' {
+                // delimiter is found, end the string, but don't advance yet, this will be done
+                // below
                 break;
             }
             if c == '\n' {
-                self.line += 1
+                // don't forget to advance the line index when scanning multi-line strings
+                self.line_index += 1
             };
             self.advance();
         }
 
         if self.peek().is_none() {
             return Err(InternalRoxError::SyntaxError {
-                line: self.line,
+                line: self.line_index,
                 message: "Unterminated string.".into(),
             });
         }
@@ -179,10 +203,13 @@ impl<'a> Scanner<'a> {
         // Trim the surrounding quotes when building the lexeme in the token.
         Ok(Some(self.build_complex_token(
             TokenType::String,
-            self.source[self.start + 1..self.current - 1].to_owned(),
+            // don't forget to account for the " delimiters on both sides when extracting the
+            // lexeme string
+            self.source_buffer[self.start_index + 1..self.current_index - 1].to_owned(),
         )))
     }
 
+    /// Scan the internal buffer from the current token until it finishes scanning a valid number
     fn scan_number(&mut self) -> InternalRoxResult<Option<Token>> {
         while Scanner::is_digit(self.peek()) {
             self.advance();
@@ -199,15 +226,16 @@ impl<'a> Scanner<'a> {
 
         Ok(Some(self.build_complex_token(
             TokenType::Number,
-            self.source[self.start..self.current].to_owned(),
+            self.source_buffer[self.start_index..self.current_index].to_owned(),
         )))
     }
 
+    /// Scan the internal buffer from the current token to find a valid identifier / keyword
     fn scan_identifier(&mut self) -> InternalRoxResult<Option<Token>> {
         while Scanner::is_alphanumeric(self.peek()) {
             self.advance();
         }
-        let text = &self.source[self.start..self.current];
+        let text = &self.source_buffer[self.start_index..self.current_index];
 
         Ok(Some(if let Some(token_type) = KEYWORDS.get(text) {
             self.build_complex_token(*token_type, text.to_owned())
@@ -218,13 +246,16 @@ impl<'a> Scanner<'a> {
 
     /// return the current char in source and advance cursor by one
     fn advance(&mut self) -> char {
-        self.current += 1;
-        self.source.chars().nth(self.current - 1).unwrap()
+        self.current_index += 1;
+        self.source_buffer
+            .chars()
+            .nth(self.current_index - 1)
+            .unwrap()
     }
 
     /// only consume the next char if it matches the expected one
     fn advance_if_equal(&mut self, expected: char) -> bool {
-        match self.source.chars().nth(self.current) {
+        match self.source_buffer.chars().nth(self.current_index) {
             Some(c) => {
                 if c != expected {
                     return false;
@@ -232,18 +263,18 @@ impl<'a> Scanner<'a> {
             }
             None => return false,
         }
-        self.current += 1;
+        self.current_index += 1;
         true
     }
 
     /// peek the current character in the source
     fn peek(&self) -> Option<char> {
-        self.source.chars().nth(self.current)
+        self.source_buffer.chars().nth(self.current_index)
     }
 
     /// peek the next character in source
     fn peek_next(&self) -> Option<char> {
-        self.source.chars().nth(self.current + 1)
+        self.source_buffer.chars().nth(self.current_index + 1)
     }
 
     /// helper to check if a character is a digit
