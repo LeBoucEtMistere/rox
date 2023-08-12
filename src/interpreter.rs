@@ -51,15 +51,6 @@ impl Interpreter {
         Ok(())
     }
 
-    fn process_result<T>(&mut self, result: Result<T, InternalRoxError>) -> FacingRoxResult<T> {
-        result.map_err(|e| {
-            self.had_error = true;
-            eprintln!("{}", e);
-            match e {
-                InternalRoxError::SyntaxError { .. } => FacingRoxError::SyntaxError,
-            }
-        })
-    }
     fn process_result_vec<T>(
         &mut self,
         result: Result<T, Vec<InternalRoxError>>,
@@ -86,7 +77,7 @@ impl Interpreter {
         if self.had_error {}
 
         let p = Parser::new(tokens);
-        let ast = p.parse();
+        let ast = p.parse().map_err(FacingRoxError::ParseError)?;
 
         println!("{}", ASTPrettyPrinter::new().print(&ast));
 

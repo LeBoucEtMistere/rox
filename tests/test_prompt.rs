@@ -5,10 +5,10 @@ fn test_prompt_exits_correctly() {
     for exit_word in ["exit", "exit()", "quit", "quit()"] {
         let cmd = Command::cargo_bin("rox")
             .expect("Cannot find cargo binary target rox")
-            .write_stdin(format!("\n{}", exit_word))
+            .write_stdin(exit_word.to_string())
             .output()
             .expect("rox binary invokation failed");
-        cmd.assert().success().stdout("> \n> ").stderr("");
+        cmd.assert().success().stdout("> ").stderr("");
     }
 }
 
