@@ -1,22 +1,17 @@
 use std::io;
 
-use crate::parser::error::ParseError;
+use crate::{parser::error::ParserError, scanner::error::ScannerError};
 
-#[derive(thiserror::Error, Debug)]
-pub enum InternalRoxError {
-    #[error("[line {line}] SyntaxError: {message}")]
-    SyntaxError { line: usize, message: String },
-}
 #[allow(clippy::enum_variant_names)]
 #[derive(thiserror::Error, Debug)]
 pub enum FacingRoxError {
-    #[error("Syntax Error")]
-    SyntaxError,
     #[error(transparent)]
     IOError(#[from] io::Error),
     #[error(transparent)]
-    ParseError(#[from] ParseError),
+    ParserError(#[from] ParserError),
+    #[error(transparent)]
+    ScannerError(#[from] ScannerError),
 }
 
-pub type InternalRoxResult<T> = Result<T, InternalRoxError>;
 pub type FacingRoxResult<T> = Result<T, FacingRoxError>;
+pub type FacingRoxResults<T> = Result<T, Vec<FacingRoxError>>;

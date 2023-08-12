@@ -3,19 +3,19 @@ use std::fmt::Display;
 use thiserror::Error;
 
 use crate::token::{Token, TokenType};
-#[derive(Error, Debug)]
-pub struct ParseError {
+#[derive(Error, Debug, PartialEq)]
+pub struct ParserError {
     token: Token,
     msg: String,
 }
 
-impl ParseError {
+impl ParserError {
     pub fn new(token: Token, msg: String) -> Self {
         Self { token, msg }
     }
 }
 
-impl Display for ParseError {
+impl Display for ParserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.token.token_type == TokenType::Eof {
             write!(
@@ -33,3 +33,5 @@ impl Display for ParseError {
         Ok(())
     }
 }
+
+pub type ParserResults<T> = Result<T, Vec<ParserError>>;

@@ -1,9 +1,8 @@
+pub mod error;
 use phf::phf_map;
 
-use crate::{
-    error::{InternalRoxError, InternalRoxResult},
-    token::{Token, TokenType},
-};
+use self::error::{ScannerError, ScannerResult, ScannerResults};
+use crate::token::{Token, TokenType};
 
 /// Perfect HashMap mapping string keywords to their token type
 static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
@@ -57,8 +56,8 @@ impl<'a> Scanner<'a> {
     /// tokens out of it.
     ///
     /// If any errors are encountered during the scanning process, returns them here.
-    pub fn scan_tokens(mut self) -> Result<Vec<Token>, Vec<InternalRoxError>> {
-        let mut errors_encountered: Vec<InternalRoxError> = Vec::new();
+    pub fn scan_tokens(mut self) -> ScannerResults<Vec<Token>> {
+        let mut errors_encountered: Vec<ScannerError> = Vec::new();
 
         while self.current_index < self.source_buffer.len() {
             // starting scanning for a new token, reset the start index
@@ -84,7 +83,7 @@ impl<'a> Scanner<'a> {
     }
 
     /// Method responsible for the actual scanning of a token
-    fn scan_token(&mut self) -> InternalRoxResult<Option<Token>> {
+    fn scan_token(&mut self) -> ScannerResult<Option<Token>> {
         match self.advance() {
             '(' => Ok(Some(self.build_simple_token(TokenType::LeftParen))),
             ')' => Ok(Some(self.build_simple_token(TokenType::RightParen))),
@@ -152,10 +151,10 @@ impl<'a> Scanner<'a> {
             '0'..='9' => self.scan_number(),
             'a'..='z' | 'A'..='Z' | '_' => self.scan_identifier(),
             // TODO: Improve error handling
-            _ => Err(InternalRoxError::SyntaxError {
-                line: self.line_index,
-                message: "Unexpected character".into(),
-            }),
+            _ => Err(ScannerError::new(
+                self.line_index,
+                "Unexpected character".into(),
+            )),
         }
     }
 
@@ -176,7 +175,7 @@ impl<'a> Scanner<'a> {
 
     /// Scan the internal buffer from the current token until a string ending delimiter lexeme is
     /// found
-    fn scan_string(&mut self) -> InternalRoxResult<Option<Token>> {
+    fn scan_string(&mut self) -> ScannerResult<Option<Token>> {
         while let Some(c) = self.peek() {
             if c == '"' {
                 // delimiter is found, end the string, but don't advance yet, this will be done
@@ -191,10 +190,10 @@ impl<'a> Scanner<'a> {
         }
 
         if self.peek().is_none() {
-            return Err(InternalRoxError::SyntaxError {
-                line: self.line_index,
-                message: "Unterminated string.".into(),
-            });
+            return Err(ScannerError::new(
+                self.line_index,
+                "Unterminated string.".into(),
+            ));
         }
 
         // The closing ".
@@ -210,7 +209,7 @@ impl<'a> Scanner<'a> {
     }
 
     /// Scan the internal buffer from the current token until it finishes scanning a valid number
-    fn scan_number(&mut self) -> InternalRoxResult<Option<Token>> {
+    fn scan_number(&mut self) -> ScannerResult<Option<Token>> {
         while Scanner::is_digit(self.peek()) {
             self.advance();
         }
@@ -231,7 +230,7 @@ impl<'a> Scanner<'a> {
     }
 
     /// Scan the internal buffer from the current token to find a valid identifier / keyword
-    fn scan_identifier(&mut self) -> InternalRoxResult<Option<Token>> {
+    fn scan_identifier(&mut self) -> ScannerResult<Option<Token>> {
         while Scanner::is_alphanumeric(self.peek()) {
             self.advance();
         }
@@ -300,7 +299,7 @@ impl<'a> Scanner<'a> {
 mod test {
     use super::Scanner;
     use crate::{
-        error::InternalRoxError,
+        scanner::error::ScannerError,
         token::{Token, TokenType},
     };
 
@@ -367,8 +366,8 @@ mod test {
         let a = s.scan_tokens().unwrap_err();
         assert_eq!(a.len(), 2);
         for e in a {
-            assert!(matches!(e, InternalRoxError::SyntaxError { line, message }
-                if line == 0 && &message == "Unexpected character"));
+            let err = ScannerError::new(0, "Unexpected character".into());
+            assert_eq!(e, err);
         }
     }
 }

@@ -1,7 +1,8 @@
 pub mod error;
 
-use error::ParseError;
+use error::ParserError;
 
+use self::error::ParserResults;
 use crate::{
     ast::Expr,
     token::{Token, TokenType},
@@ -36,21 +37,23 @@ impl Parser {
     }
 
     /// Parse the given tokens into an AST using the rules of the grammer
-    pub fn parse(mut self) -> Result<Expr, ParseError> {
-        self.expression()
+    pub fn parse(mut self) -> ParserResults<Expr> {
+        // for now we only parse a single statement so we always have at most one error to return
+        // so we convert it to a list of one error to match the API
+        self.expression().map_err(|err| vec![err])
     }
 
     // Grammar rules
 
     /// Defines the rule to parse the expression rule in the grammar:
     /// expression     → equality ;
-    fn expression(&mut self) -> Result<Expr, ParseError> {
+    fn expression(&mut self) -> Result<Expr, ParserError> {
         self.equality()
     }
 
     /// Defines the rule to parse the equality rule in the grammar:
     /// equality       → comparison ( ( "!=" | "==" ) comparison )* ;
-    fn equality(&mut self) -> Result<Expr, ParseError> {
+    fn equality(&mut self) -> Result<Expr, ParserError> {
         let mut expr = self.comparison()?;
         while self.advance_if_token_type_matches(&[TokenType::BangEqual, TokenType::EqualEqual]) {
             let op = self.remove_previous();
@@ -63,7 +66,7 @@ impl Parser {
 
     /// Defines the rule to parse the comparison rule in the grammar:
     /// comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
-    fn comparison(&mut self) -> Result<Expr, ParseError> {
+    fn comparison(&mut self) -> Result<Expr, ParserError> {
         let mut expr = self.term()?;
         while self.advance_if_token_type_matches(&[
             TokenType::Greater,
@@ -81,7 +84,7 @@ impl Parser {
 
     /// Defines the rule to parse the term rule in the grammar:
     /// term           → factor ( ( "-" | "+" ) factor )* ;
-    fn term(&mut self) -> Result<Expr, ParseError> {
+    fn term(&mut self) -> Result<Expr, ParserError> {
         let mut expr = self.factor()?;
         while self.advance_if_token_type_matches(&[TokenType::Minus, TokenType::Plus]) {
             let op = self.remove_previous();
@@ -94,7 +97,7 @@ impl Parser {
 
     /// Defines the rule to parse the factor rule in the grammar:
     /// factor         → unary ( ( "/" | "*" ) unary )* ;
-    fn factor(&mut self) -> Result<Expr, ParseError> {
+    fn factor(&mut self) -> Result<Expr, ParserError> {
         let mut expr = self.unary()?;
         while self.advance_if_token_type_matches(&[TokenType::Slash, TokenType::Star]) {
             let op = self.remove_previous();
@@ -108,7 +111,7 @@ impl Parser {
     /// Defines the rule to parse the unary rule in the grammar:
     /// unary          → ( "!" | "-" ) unary
     ///                | primary ;
-    fn unary(&mut self) -> Result<Expr, ParseError> {
+    fn unary(&mut self) -> Result<Expr, ParserError> {
         if self.advance_if_token_type_matches(&[TokenType::Bang, TokenType::Minus]) {
             let op = self.remove_previous();
             let right = self.unary()?;
@@ -121,7 +124,7 @@ impl Parser {
     /// Defines the rule to parse the primary rule in the grammar:
     /// primary        → NUMBER | STRING | "true" | "false" | "nil"
     ///                | "(" expression ")" ;
-    fn primary(&mut self) -> Result<Expr, ParseError> {
+    fn primary(&mut self) -> Result<Expr, ParserError> {
         if self.advance_if_token_type_matches(&[
             TokenType::False,
             TokenType::True,
@@ -137,7 +140,7 @@ impl Parser {
             return Ok(Expr::new_grouping(expr));
         }
 
-        Err(ParseError::new(
+        Err(ParserError::new(
             self.peek().clone(),
             "Expected expression".to_owned(),
         ))
@@ -161,11 +164,11 @@ impl Parser {
             .expect("current index shouldn't be greater than number of tokens")
     }
 
-    fn consume(&mut self, token_type: TokenType, error_msg: String) -> Result<Token, ParseError> {
+    fn consume(&mut self, token_type: TokenType, error_msg: String) -> Result<Token, ParserError> {
         if self.check(token_type) {
             Ok(self.advance().clone())
         } else {
-            Err(ParseError::new(self.peek().clone(), error_msg))
+            Err(ParserError::new(self.peek().clone(), error_msg))
         }
     }
 

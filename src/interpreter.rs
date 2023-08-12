@@ -1,4 +1,5 @@
 use std::{
+    error::Error,
     fs::File,
     io::{self, BufReader, Read, Write},
 };
@@ -19,6 +20,7 @@ impl Interpreter {
         let mut reader = BufReader::new(f);
         reader.read_to_string(&mut buffer)?;
         self.run(&buffer)
+            .map_err(|err_vec| err_vec.into_iter().nth(1).unwrap())
     }
 
     pub fn run_prompt(&mut self) -> FacingRoxResult<()> {
@@ -41,8 +43,7 @@ impl Interpreter {
                 a => {
                     let r = self.run(a);
 
-                    if let Err(err) = r {
-                        eprintln!("{}", err);
+                    if r.is_err() {
                         self.reset_error();
                     }
                 }
@@ -51,18 +52,18 @@ impl Interpreter {
         Ok(())
     }
 
-    fn process_result_vec<T>(
-        &mut self,
-        result: Result<T, Vec<InternalRoxError>>,
-    ) -> FacingRoxResult<T> {
+    fn handle_errors<T, E>(&mut self, result: Result<T, Vec<E>>) -> FacingRoxResults<T>
+    where
+        E: Into<FacingRoxError> + Error,
+    {
         result.map_err(|errs| {
             self.had_error = true;
-            for e in &errs {
-                eprintln!("{}", e);
-            }
-            match errs[0] {
-                InternalRoxError::SyntaxError { .. } => FacingRoxError::SyntaxError,
-            }
+            errs.into_iter()
+                .map(|err| {
+                    eprintln!("{}", err);
+                    err.into()
+                })
+                .collect()
         })
     }
 
@@ -70,14 +71,12 @@ impl Interpreter {
         self.had_error = false;
     }
 
-    fn run(&mut self, buffer: &str) -> FacingRoxResult<()> {
+    fn run(&mut self, buffer: &str) -> FacingRoxResults<()> {
         let scanner = Scanner::new(buffer);
-        let tokens = self.process_result_vec(scanner.scan_tokens())?;
-
-        if self.had_error {}
+        let tokens = self.handle_errors(scanner.scan_tokens())?;
 
         let p = Parser::new(tokens);
-        let ast = p.parse().map_err(FacingRoxError::ParseError)?;
+        let ast = self.handle_errors(p.parse())?;
 
         println!("{}", ASTPrettyPrinter::new().print(&ast));
 
