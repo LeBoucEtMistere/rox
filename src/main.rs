@@ -2,6 +2,7 @@ mod ast;
 mod error;
 mod interpreter;
 mod parser;
+mod rox;
 mod scanner;
 mod token;
 use std::process;
@@ -9,8 +10,8 @@ use std::process;
 use camino::Utf8PathBuf;
 use clap::Parser;
 use env_logger::Builder;
-use interpreter::Interpreter;
 use log::LevelFilter;
+use rox::Rox;
 
 /// Here's my app!
 #[derive(Debug, Parser)]
@@ -36,7 +37,7 @@ fn main() {
     };
     builder.init();
 
-    let mut interpreter = Interpreter::default();
+    let mut interpreter = Rox::default();
     if let Some(file_to_run) = opts.file_to_run {
         if let Err(e) = interpreter.run_file(file_to_run) {
             eprintln!("{}", e);

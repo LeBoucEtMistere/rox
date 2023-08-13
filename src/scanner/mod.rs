@@ -121,7 +121,7 @@ impl<'a> Scanner<'a> {
             })),
             '>' => Ok(Some({
                 let tt = if self.advance_if_equal('=') {
-                    TokenType::GreateEqual
+                    TokenType::GreaterEqual
                 } else {
                     TokenType::Greater
                 };

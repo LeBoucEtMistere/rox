@@ -23,12 +23,16 @@ pub struct Grouping {
     pub expr: Box<Expr>,
 }
 
-pub struct Literal {
-    pub value: Token,
+#[derive(Debug)]
+pub enum Literal {
+    Boolean(bool),
+    String(String),
+    Nil,
+    Number(f64),
 }
 
-impl Expr {
-    pub(super) fn accept<T>(&self, visitor: &mut dyn ExprVisitor<Return = T>) -> T {
+impl<'a> Expr {
+    pub fn accept<T>(&'a self, visitor: &mut dyn ExprVisitor<'a, Return = T>) -> T {
         match self {
             Expr::Unary(unary) => visitor.visit_unary(unary),
             Expr::Binary(binary) => visitor.visit_binary(binary),
@@ -54,9 +58,24 @@ impl Expr {
         })
     }
 
-    /// Helper function to generate literal expression instance
-    pub fn new_literal(value: Token) -> Self {
-        Expr::Literal(Literal { value })
+    /// Helper function to generate boolean literal expression instance
+    pub fn new_boolean_literal(v: bool) -> Self {
+        Expr::Literal(Literal::Boolean(v))
+    }
+
+    /// Helper function to generate boolean literal expression instance
+    pub fn new_nil_literal() -> Self {
+        Expr::Literal(Literal::Nil)
+    }
+
+    /// Helper function to generate boolean literal expression instance
+    pub fn new_number_literal(v: f64) -> Self {
+        Expr::Literal(Literal::Number(v))
+    }
+
+    /// Helper function to generate boolean literal expression instance
+    pub fn new_string_literal(v: String) -> Self {
+        Expr::Literal(Literal::String(v))
     }
 
     /// Helper function to generate a grouping expression instance

@@ -7,7 +7,7 @@ pub struct ASTPrettyPrinter {
     indent_lvl: usize,
 }
 
-impl ExprVisitor for ASTPrettyPrinter {
+impl<'a> ExprVisitor<'a> for ASTPrettyPrinter {
     type Return = String;
 
     fn visit_unary(&mut self, unary: &Unary) -> Self::Return {
@@ -31,8 +31,13 @@ impl ExprVisitor for ASTPrettyPrinter {
             output.push_str(&"│  ".repeat(self.indent_lvl - 1));
             output.push_str("└─ ");
         }
+        match literal {
+            Literal::Boolean(v) => output.push_str(&format!("{v}")),
+            Literal::String(v) => output.push_str(v),
+            Literal::Nil => output.push_str("nil"),
+            Literal::Number(v) => output.push_str(&format!("{v}")),
+        }
 
-        output.push_str(&literal.value.lexeme);
         output
     }
 }
@@ -83,22 +88,14 @@ mod test {
                     lexeme: "-".into(),
                     line: 0,
                 },
-                Expr::new_literal(Token {
-                    token_type: TokenType::Number,
-                    lexeme: "123".into(),
-                    line: 0,
-                }),
+                Expr::new_number_literal(123.0),
             ),
             Token {
                 token_type: TokenType::Star,
                 lexeme: "*".into(),
                 line: 0,
             },
-            Expr::new_grouping(Expr::new_literal(Token {
-                token_type: TokenType::Number,
-                lexeme: "45.67".into(),
-                line: 0,
-            })),
+            Expr::new_grouping(Expr::new_number_literal(45.67)),
         );
 
         assert_eq!(

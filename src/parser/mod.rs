@@ -70,7 +70,7 @@ impl Parser {
         let mut expr = self.term()?;
         while self.advance_if_token_type_matches(&[
             TokenType::Greater,
-            TokenType::GreateEqual,
+            TokenType::GreaterEqual,
             TokenType::Less,
             TokenType::LessEqual,
         ]) {
@@ -125,14 +125,24 @@ impl Parser {
     /// primary        → NUMBER | STRING | "true" | "false" | "nil"
     ///                | "(" expression ")" ;
     fn primary(&mut self) -> Result<Expr, ParserError> {
-        if self.advance_if_token_type_matches(&[
-            TokenType::False,
-            TokenType::True,
-            TokenType::Nil,
-            TokenType::String,
-            TokenType::Number,
-        ]) {
-            return Ok(Expr::new_literal(self.remove_previous()));
+        if self.advance_if_token_type_matches(&[TokenType::False, TokenType::True]) {
+            return Ok(Expr::new_boolean_literal(
+                self.remove_previous().token_type == TokenType::True,
+            ));
+        }
+        if self.advance_if_token_type_matches(&[TokenType::Nil]) {
+            return Ok(Expr::new_nil_literal());
+        }
+        if self.advance_if_token_type_matches(&[TokenType::String]) {
+            return Ok(Expr::new_string_literal(self.remove_previous().lexeme));
+        }
+        if self.advance_if_token_type_matches(&[TokenType::Number]) {
+            return Ok(Expr::new_number_literal(
+                self.remove_previous()
+                    .lexeme
+                    .parse::<f64>()
+                    .expect("Token should contain valid number after scanning is done."),
+            ));
         }
         if self.advance_if_token_type_matches(std::slice::from_ref(&TokenType::LeftParen)) {
             let expr = self.expression()?;

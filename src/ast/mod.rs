@@ -1,4 +1,4 @@
-mod expression;
+pub mod expression;
 pub mod visitor;
 
 pub use expression::Expr;

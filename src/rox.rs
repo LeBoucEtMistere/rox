@@ -6,14 +6,20 @@ use std::{
 
 use camino::Utf8PathBuf;
 
-use crate::{ast::visitor::ASTPrettyPrinter, error::*, parser::Parser, scanner::Scanner};
+use crate::{
+    ast::visitor::ASTPrettyPrinter,
+    error::*,
+    interpreter::Interpreter,
+    parser::Parser,
+    scanner::Scanner,
+};
 
 #[derive(Default)]
-pub struct Interpreter {
+pub struct Rox {
     had_error: bool,
 }
 
-impl Interpreter {
+impl Rox {
     pub fn run_file(&mut self, file_path: Utf8PathBuf) -> FacingRoxResult<()> {
         let f = File::open(file_path)?;
         let mut buffer = String::new();
@@ -78,7 +84,12 @@ impl Interpreter {
         let p = Parser::new(tokens);
         let ast = self.handle_errors(p.parse())?;
 
-        println!("{}", ASTPrettyPrinter::new().print(&ast));
+        println!("ast: {} \n", ASTPrettyPrinter::new().print(&ast));
+
+        let mut i = Interpreter {};
+        let r = i.interpret(&ast);
+
+        println!("result:{}", r);
 
         Ok(())
     }
