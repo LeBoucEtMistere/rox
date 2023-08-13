@@ -87,7 +87,7 @@ impl Rox {
         println!("ast: {} \n", ASTPrettyPrinter::new().print(&ast));
 
         let mut i = Interpreter {};
-        let r = i.interpret(&ast);
+        let r = self.handle_errors(i.interpret(&ast))?;
 
         println!("result:{}", r);
 

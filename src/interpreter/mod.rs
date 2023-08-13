@@ -1,5 +1,8 @@
+pub mod error;
+
 use std::any::Any;
 
+use self::error::{InterpreterError, InterpreterResult, InterpreterResults};
 use crate::{
     ast::{
         expression::{Binary, Grouping, Literal, Unary},
@@ -12,10 +15,10 @@ use crate::{
 pub struct Interpreter {}
 
 impl Interpreter {
-    pub fn interpret(&mut self, expr: &Expr) -> String {
-        let boxed_result = self.evaluate(expr);
+    pub fn interpret(&mut self, expr: &Expr) -> InterpreterResults<String> {
+        let boxed_result = self.evaluate(expr).map_err(|err| vec![err])?;
 
-        if let Some(v) = boxed_result.downcast_ref::<bool>() {
+        Ok(if let Some(v) = boxed_result.downcast_ref::<bool>() {
             format!("{v}")
         } else if boxed_result.is::<()>() {
             "nil".to_owned()
@@ -25,9 +28,9 @@ impl Interpreter {
             *v
         } else {
             panic!()
-        }
+        })
     }
-    fn evaluate(&mut self, expr: &Expr) -> Box<dyn Any> {
+    fn evaluate(&mut self, expr: &Expr) -> InterpreterResult<Box<dyn Any>> {
         expr.accept(self)
     }
 
@@ -41,135 +44,159 @@ impl Interpreter {
     }
 }
 
-fn is_equal(left: &dyn Any, right: &dyn Any) -> bool {
+fn is_equal(left: &dyn Any, right: &dyn Any) -> InterpreterResult<bool> {
     if (*left).type_id() != (*right).type_id() {
         // different types cannot be equal
-        false
+        Ok(false)
     } else if left.is::<()>() {
         // nil is always equal to itself
-        true
+        Ok(true)
     } else if left.is::<String>() {
-        left.downcast_ref::<String>().unwrap() == right.downcast_ref::<String>().unwrap()
+        Ok(left.downcast_ref::<String>().unwrap() == right.downcast_ref::<String>().unwrap())
     } else if left.is::<f64>() {
-        left.downcast_ref::<f64>().unwrap() == right.downcast_ref::<f64>().unwrap()
+        Ok(left.downcast_ref::<f64>().unwrap() == right.downcast_ref::<f64>().unwrap())
     } else if left.is::<bool>() {
-        left.downcast_ref::<bool>().unwrap() == right.downcast_ref::<bool>().unwrap()
+        Ok(left.downcast_ref::<bool>().unwrap() == right.downcast_ref::<bool>().unwrap())
     } else {
-        panic!("Don't know how to compare two types for equality")
+        Err(InterpreterError::TypeError(
+            "Trying to compute equality of an unknown type".into(),
+        ))
     }
 }
 
 impl<'a> ExprVisitor<'a> for Interpreter {
-    type Return = Box<dyn Any>;
+    type Return = InterpreterResult<Box<dyn Any>>;
 
     fn visit_unary(&mut self, unary: &'a Unary) -> Self::Return {
-        let mut boxed_right = self.evaluate(&unary.expr);
+        let mut boxed_right = self.evaluate(&unary.expr)?;
 
         match unary.op.token_type {
-            TokenType::Minus => Box::new(
-                boxed_right
-                    .downcast_mut::<f64>()
-                    .map(|&mut v| -v)
-                    .expect("Expression should be a valid number"),
-            ),
-            TokenType::Bang => Box::new(!Interpreter::is_truthy(&boxed_right)),
-            t => {
-                panic!("Unary operand {t:?} not supported")
-            }
+            TokenType::Minus => Ok(Box::new(
+                boxed_right.downcast_mut::<f64>().map(|&mut v| -v).ok_or(
+                    InterpreterError::TypeError("Expected f64 after unary operator -".into()),
+                )?,
+            )),
+            TokenType::Bang => Ok(Box::new(!Interpreter::is_truthy(&boxed_right))),
+            t => Err(InterpreterError::TypeError(format!(
+                "Operand {t:?} not supported in unary expression"
+            ))),
         }
     }
 
     fn visit_binary(&mut self, binary: &'a Binary) -> Self::Return {
-        let boxed_left = self.evaluate(&binary.left);
-        let boxed_right = self.evaluate(&binary.right);
+        let boxed_left = self.evaluate(&binary.left)?;
+        let boxed_right = self.evaluate(&binary.right)?;
 
         match binary.op.token_type {
-            TokenType::Minus => Box::new(
+            TokenType::Minus => Ok(Box::new(
                 boxed_left
                     .downcast_ref::<f64>()
-                    .expect("Left of - binary should be a valid number")
+                    .ok_or(InterpreterError::TypeError(
+                        "Left of - binary should be a valid number".into(),
+                    ))?
                     - boxed_right
                         .downcast_ref::<f64>()
-                        .expect("Right of - binary should be a valid number"),
-            ),
-            TokenType::Slash => Box::new(
+                        .ok_or(InterpreterError::TypeError(
+                            "Right of - binary should be a valid number".into(),
+                        ))?,
+            )),
+            TokenType::Slash => Ok(Box::new(
                 boxed_left
                     .downcast_ref::<f64>()
-                    .expect("Left of / binary should be a valid number")
+                    .ok_or(InterpreterError::TypeError(
+                        "Left of / binary should be a valid number".into(),
+                    ))?
                     / boxed_right
                         .downcast_ref::<f64>()
-                        .expect("Right of / binary should be a valid number"),
-            ),
-            TokenType::Star => Box::new(
+                        .ok_or(InterpreterError::TypeError(
+                            "Right of / binary should be a valid number".into(),
+                        ))?,
+            )),
+            TokenType::Star => Ok(Box::new(
                 boxed_left
                     .downcast_ref::<f64>()
-                    .expect("Left of * binary should be a valid number")
+                    .ok_or(InterpreterError::TypeError(
+                        "Left of * binary should be a valid number".into(),
+                    ))?
                     * boxed_right
                         .downcast_ref::<f64>()
-                        .expect("Right of * binary should be a valid number"),
-            ),
+                        .ok_or(InterpreterError::TypeError(
+                            "Right of * binary should be a valid number".into(),
+                        ))?,
+            )),
             TokenType::Plus => {
                 // + can add together two numbers or two strings
                 if boxed_left.is::<f64>() && boxed_right.is::<f64>() {
-                    Box::new(
-                        boxed_left
-                            .downcast_ref::<f64>()
-                            .expect("Left of + binary should be a valid number")
-                            + boxed_right
-                                .downcast_ref::<f64>()
-                                .expect("Right of + binary should be a valid number"),
-                    )
-                } else if boxed_left.is::<String>() && boxed_right.is::<String>() {
-                    Box::new(format!(
-                        "{}{}",
-                        boxed_left
-                            .downcast_ref::<String>()
-                            .expect("Left of + binary should be a valid string"),
-                        boxed_right
-                            .downcast_ref::<f64>()
-                            .expect("Right of + binary should be a valid string"),
+                    Ok(Box::new(
+                        boxed_left.downcast_ref::<f64>().unwrap()
+                            + boxed_right.downcast_ref::<f64>().unwrap(),
                     ))
+                } else if boxed_left.is::<String>() && boxed_right.is::<String>() {
+                    Ok(Box::new(format!(
+                        "{}{}",
+                        boxed_left.downcast_ref::<String>().unwrap(),
+                        boxed_right.downcast_ref::<f64>().unwrap()
+                    )))
                 } else {
-                    panic!("Binary operand + cannot be evaluated")
+                    Err(InterpreterError::TypeError(
+                        "Cannot evaluate + operand, both expressions should be strings or numbers"
+                            .into(),
+                    ))
                 }
             }
-            TokenType::Greater => Box::new(
+            TokenType::Greater => Ok(Box::new(
                 boxed_left
                     .downcast_ref::<f64>()
-                    .expect("Left of > binary should be a valid number")
+                    .ok_or(InterpreterError::TypeError(
+                        "Left of > binary should be a valid number".into(),
+                    ))?
                     > boxed_right
                         .downcast_ref::<f64>()
-                        .expect("Right of > binary should be a valid number"),
-            ),
-            TokenType::GreaterEqual => Box::new(
+                        .ok_or(InterpreterError::TypeError(
+                            "Right of > binary should be a valid number".into(),
+                        ))?,
+            )),
+            TokenType::GreaterEqual => Ok(Box::new(
                 boxed_left
                     .downcast_ref::<f64>()
-                    .expect("Left of >= binary should be a valid number")
+                    .ok_or(InterpreterError::TypeError(
+                        "Left of >= binary should be a valid number".into(),
+                    ))?
                     >= boxed_right
                         .downcast_ref::<f64>()
-                        .expect("Right of >= binary should be a valid number"),
-            ),
-            TokenType::Less => Box::new(
+                        .ok_or(InterpreterError::TypeError(
+                            "Right of >= binary should be a valid number".into(),
+                        ))?,
+            )),
+            TokenType::Less => Ok(Box::new(
                 boxed_left
                     .downcast_ref::<f64>()
-                    .expect("Left of < binary should be a valid number")
+                    .ok_or(InterpreterError::TypeError(
+                        "Left of < binary should be a valid number".into(),
+                    ))?
                     < boxed_right
                         .downcast_ref::<f64>()
-                        .expect("Right of < binary should be a valid number"),
-            ),
-            TokenType::LessEqual => Box::new(
+                        .ok_or(InterpreterError::TypeError(
+                            "Right of < binary should be a valid number".into(),
+                        ))?,
+            )),
+            TokenType::LessEqual => Ok(Box::new(
                 boxed_left
                     .downcast_ref::<f64>()
-                    .expect("Left of <= binary should be a valid number")
+                    .ok_or(InterpreterError::TypeError(
+                        "Left of <= binary should be a valid number".into(),
+                    ))?
                     <= boxed_right
                         .downcast_ref::<f64>()
-                        .expect("Right of <= binary should be a valid number"),
-            ),
-            TokenType::EqualEqual => Box::new(is_equal(&*boxed_left, &*boxed_right)),
-            TokenType::BangEqual => Box::new(!is_equal(&*boxed_left, &*boxed_right)),
-            t => {
-                panic!("Binary operand {t:?} not supported")
-            }
+                        .ok_or(InterpreterError::TypeError(
+                            "Right of <= binary should be a valid number".into(),
+                        ))?,
+            )),
+            TokenType::EqualEqual => Ok(Box::new(is_equal(&*boxed_left, &*boxed_right)?)),
+            TokenType::BangEqual => Ok(Box::new(!is_equal(&*boxed_left, &*boxed_right)?)),
+            t => Err(InterpreterError::TypeError(format!(
+                "Operand {t:?} not supported in binary expression"
+            ))),
         }
     }
 
@@ -179,10 +206,10 @@ impl<'a> ExprVisitor<'a> for Interpreter {
 
     fn visit_literal(&mut self, literal: &'a Literal) -> Self::Return {
         match literal {
-            Literal::Boolean(v) => Box::new(*v),
-            Literal::String(v) => Box::new(v.clone()),
-            Literal::Nil => Box::new(()),
-            Literal::Number(v) => Box::new(*v),
+            Literal::Boolean(v) => Ok(Box::new(*v)),
+            Literal::String(v) => Ok(Box::new(v.clone())),
+            Literal::Nil => Ok(Box::new(())),
+            Literal::Number(v) => Ok(Box::new(*v)),
         }
     }
 }
