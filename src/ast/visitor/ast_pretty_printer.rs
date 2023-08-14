@@ -7,7 +7,7 @@ pub struct ASTPrettyPrinter {
     indent_lvl: usize,
 }
 
-impl<'a> ExprVisitor<'a> for ASTPrettyPrinter {
+impl ExprVisitor for ASTPrettyPrinter {
     type Return = String;
 
     fn visit_unary(&mut self, unary: &Unary) -> Self::Return {

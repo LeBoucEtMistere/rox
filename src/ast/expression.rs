@@ -31,8 +31,8 @@ pub enum Literal {
     Number(f64),
 }
 
-impl<'a> Expr {
-    pub fn accept<T>(&'a self, visitor: &mut dyn ExprVisitor<'a, Return = T>) -> T {
+impl Expr {
+    pub fn accept<T>(&self, visitor: &mut dyn ExprVisitor<Return = T>) -> T {
         match self {
             Expr::Unary(unary) => visitor.visit_unary(unary),
             Expr::Binary(binary) => visitor.visit_binary(binary),
