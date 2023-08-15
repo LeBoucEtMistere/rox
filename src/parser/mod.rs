@@ -4,22 +4,24 @@ use error::ParserError;
 
 use self::error::ParserResults;
 use crate::{
-    ast::Expr,
+    ast::{Expr, Statement},
     token::{Token, TokenType},
 };
 
 /// Implements the parsing of tokens obtained from the scanner into an AST,
 /// based on the rules of the following grammer:
 ///
-/// expression     → equality ;
-/// equality       → comparison ( ( "!=" | "==" ) comparison )* ;
-/// comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
-/// term           → factor ( ( "-" | "+" ) factor )* ;
-/// factor         → unary ( ( "/" | "*" ) unary )* ;
-/// unary          → ( "!" | "-" ) unary
-///                | primary ;
-/// primary        → NUMBER | STRING | "true" | "false" | "nil"
-///                | "(" expression ")" ;
+/// program               → statement* EOF ;
+/// statement             → expression_statement | print_statement ;
+/// expression_statement  → expression ";" ;
+/// print_statement       → print expression  ";" ;
+/// expression            → equality ;
+/// equality              → comparison ( ( "!=" | "==" ) comparison )* ;
+/// comparison            → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
+/// term                  → factor ( ( "-" | "+" ) factor )* ;
+/// factor                → unary ( ( "/" | "*" ) unary )* ;
+/// unary                 → ( "!" | "-" ) unary | primary ;
+/// primary               → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
 pub struct Parser {
     /// Holds the list of tokens being parsed
     tokens: Vec<Token>,
@@ -37,13 +39,51 @@ impl Parser {
     }
 
     /// Parse the given tokens into an AST using the rules of the grammer
-    pub fn parse(mut self) -> ParserResults<Expr> {
-        // for now we only parse a single statement so we always have at most one error to return
-        // so we convert it to a list of one error to match the API
-        self.expression().map_err(|err| vec![err])
+    pub fn parse(mut self) -> ParserResults<Vec<Statement>> {
+        let mut statements = Vec::new();
+        let mut errors_encountered: Vec<ParserError> = Vec::new();
+
+        while self.peek().token_type != TokenType::Eof {
+            match self.statement() {
+                Ok(s) => statements.push(s),
+                Err(e) => errors_encountered.push(e),
+            };
+        }
+
+        if !errors_encountered.is_empty() {
+            Err(errors_encountered)
+        } else {
+            Ok(statements)
+        }
     }
 
     // Grammar rules
+
+    /// Defines the rule to parse the statement rule in the grammar:
+    /// statement             → expression_statement | print_statement ;
+    fn statement(&mut self) -> Result<Statement, ParserError> {
+        if self.advance_if_token_type_matches(&[TokenType::Print]) {
+            self.print_statement()
+        } else {
+            self.expression_statement()
+        }
+    }
+
+    /// Defines the rule to parse the print_statement rule in the grammar:
+    /// print_statement       → print expression  ";" ;
+    fn print_statement(&mut self) -> Result<Statement, ParserError> {
+        let expr = self.expression()?;
+        self.consume(TokenType::Semicolon, "Expect ';' after value.".into())?;
+        Ok(Statement::new_print_statement(expr))
+    }
+
+    /// Defines the rule to parse the expression_statement rule in the grammar:
+    /// expression_statement  → expression ";" ;
+    fn expression_statement(&mut self) -> Result<Statement, ParserError> {
+        let expr = self.expression()?;
+        self.consume(TokenType::Semicolon, "Expect ';' after expression.".into())?;
+        Ok(Statement::new_expression_statement(expr))
+    }
 
     /// Defines the rule to parse the expression rule in the grammar:
     /// expression     → equality ;

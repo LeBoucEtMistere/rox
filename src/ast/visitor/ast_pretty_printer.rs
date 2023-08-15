@@ -1,7 +1,11 @@
 use std::ops::Deref;
 
-use super::ExprVisitor;
-use crate::ast::expression::{Binary, Expr, Grouping, Literal, Unary};
+use super::{ExprVisitor, StatementVisitor};
+use crate::ast::{
+    expression::{Binary, Expr, Grouping, Literal, Unary},
+    statement::{ExpressionStatement, PrintStatement},
+    Statement,
+};
 
 pub struct ASTPrettyPrinter {
     indent_lvl: usize,
@@ -42,13 +46,30 @@ impl ExprVisitor for ASTPrettyPrinter {
     }
 }
 
+impl StatementVisitor for ASTPrettyPrinter {
+    type Return = String;
+
+    fn visit_print(&mut self, statement: &PrintStatement) -> Self::Return {
+        format! {"print {}", statement.expr.accept(self)}
+    }
+
+    fn visit_expression(&mut self, statement: &ExpressionStatement) -> Self::Return {
+        statement.expr.accept(self).to_string()
+    }
+}
+
 impl ASTPrettyPrinter {
     pub fn new() -> Self {
         ASTPrettyPrinter { indent_lvl: 0 }
     }
     /// Render an AST in a pretty printed fashion String
-    pub fn print(&mut self, expr: &Expr) -> String {
-        expr.accept(self)
+    pub fn print(&mut self, statements: &Vec<Statement>) -> String {
+        let mut s = String::new();
+        for statement in statements {
+            s += &statement.accept(self);
+            s += "\n";
+        }
+        s
     }
 
     /// Helper function to properly indent levels of the AST
@@ -75,13 +96,13 @@ impl ASTPrettyPrinter {
 mod test {
     use super::ASTPrettyPrinter;
     use crate::{
-        ast::expression::Expr,
+        ast::{expression::Expr, Statement},
         token::{Token, TokenType},
     };
 
     #[test]
     fn basic_test() {
-        let expr = Expr::new_binary(
+        let statements = vec![Statement::new_expression_statement(Expr::new_binary(
             Expr::new_unary(
                 Token {
                     token_type: TokenType::Minus,
@@ -96,10 +117,10 @@ mod test {
                 line: 0,
             },
             Expr::new_grouping(Expr::new_number_literal(45.67)),
-        );
+        ))];
 
         assert_eq!(
-            ASTPrettyPrinter::new().print(&expr),
+            ASTPrettyPrinter::new().print(&statements),
             "*\n└─ -\n│  └─ 123\n└─ group\n│  └─ 45.67"
         );
     }

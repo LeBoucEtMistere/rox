@@ -1,11 +1,13 @@
 pub mod error;
 
-use self::error::{InterpreterError, InterpreterResult, InterpreterResults};
+use self::error::{InterpreterError, InterpreterResult};
 use crate::{
     ast::{
         expression::{Binary, Grouping, Literal, Unary},
-        visitor::ExprVisitor,
+        statement::{ExpressionStatement, PrintStatement},
+        visitor::{ExprVisitor, StatementVisitor},
         Expr,
+        Statement,
     },
     token::TokenType,
 };
@@ -32,13 +34,17 @@ impl ToString for EvaluatedExpr {
 pub struct Interpreter {}
 
 impl Interpreter {
-    pub fn interpret(&mut self, expr: &Expr) -> InterpreterResults<String> {
-        self.evaluate(expr)
-            .map_err(|err| vec![err])
-            .map(|x| ToString::to_string(&x))
+    pub fn interpret(&mut self, statements: &[Statement]) -> InterpreterResult<()> {
+        for s in statements.iter() {
+            self.execute(s)?
+        }
+        Ok(())
     }
     fn evaluate(&mut self, expr: &Expr) -> InterpreterResult<EvaluatedExpr> {
         expr.accept(self)
+    }
+    fn execute(&mut self, statement: &Statement) -> InterpreterResult<()> {
+        statement.accept(self)
     }
 }
 
@@ -229,5 +235,20 @@ impl ExprVisitor for Interpreter {
             Literal::Nil => EvaluatedExpr::Nil,
             Literal::Number(v) => EvaluatedExpr::Number(*v),
         })
+    }
+}
+
+impl StatementVisitor for Interpreter {
+    type Return = InterpreterResult<()>;
+
+    fn visit_print(&mut self, statement: &PrintStatement) -> Self::Return {
+        let value = self.evaluate(&statement.expr)?;
+        println!("{}", value.to_string());
+        Ok(())
+    }
+
+    fn visit_expression(&mut self, statement: &ExpressionStatement) -> Self::Return {
+        self.evaluate(&statement.expr)?;
+        Ok(())
     }
 }

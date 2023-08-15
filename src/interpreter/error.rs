@@ -7,4 +7,3 @@ pub enum InterpreterError {
 }
 
 pub type InterpreterResult<T> = Result<T, InterpreterError>;
-pub type InterpreterResults<T> = Result<T, Vec<InterpreterError>>;
