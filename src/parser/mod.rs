@@ -19,7 +19,8 @@ use crate::{
 /// expression_statement  → expression ";" ;
 /// print_statement       → print expression  ";" ;
 ///
-/// expression            → equality ;
+/// expression            → assignment ;
+/// assignment           → IDENTIFIER "=" assignment | equality ;
 /// equality              → comparison ( ( "!=" | "==" ) comparison )* ;
 /// comparison            → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 /// term                  → factor ( ( "-" | "+" ) factor )* ;
@@ -125,9 +126,27 @@ impl Parser {
     }
 
     /// Defines the rule to parse the expression rule in the grammar:
-    /// expression     → equality ;
+    /// expression     → assignment ;
     fn expression(&mut self) -> Result<Expr, ParserError> {
-        self.equality()
+        self.assignment()
+    }
+
+    /// Defines the rule to parse the assignment rule in the grammar:
+    /// assignment     → IDENTIFIER "=" assignment | equality ;
+    fn assignment(&mut self) -> Result<Expr, ParserError> {
+        let expr = self.equality()?;
+
+        if self.advance_if_token_type_matches(&[TokenType::Equal]) {
+            let equals = self.previous().clone();
+            let value = self.assignment()?; // assignment is right-associative so we call it again here
+            if let Expr::Variable(v) = expr {
+                return Ok(Expr::new_assign(v.name, value));
+            } else {
+                return Err(ParserError::new(equals, "Invalid assignment target".into()));
+            }
+        }
+
+        Ok(expr)
     }
 
     /// Defines the rule to parse the equality rule in the grammar:

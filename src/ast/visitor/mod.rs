@@ -3,7 +3,7 @@
 // pub use ast_pretty_printer::ASTPrettyPrinter;
 
 use super::{
-    expression::{Binary, Grouping, Literal, Unary, Variable},
+    expression::{Assign, Binary, Grouping, Literal, Unary, Variable},
     statement::{ExpressionStatement, PrintStatement, VariableStatement},
 };
 
@@ -21,6 +21,8 @@ pub trait ExprVisitor {
     fn visit_literal(&mut self, literal: &Literal) -> Self::Return;
     /// Visit a variable expression
     fn visit_variable(&mut self, variable: &Variable) -> Self::Return;
+    /// Visit an assign expression
+    fn visit_assign(&mut self, assign: &Assign) -> Self::Return;
 }
 
 pub trait StatementVisitor {

@@ -7,7 +7,7 @@ use self::{
 };
 use crate::{
     ast::{
-        expression::{Binary, Grouping, Literal, Unary, Variable},
+        expression::{Assign, Binary, Grouping, Literal, Unary, Variable},
         statement::{ExpressionStatement, PrintStatement, VariableStatement},
         visitor::{ExprVisitor, StatementVisitor},
         Expr,
@@ -246,6 +246,12 @@ impl ExprVisitor for Interpreter {
 
     fn visit_variable(&mut self, variable: &Variable) -> Self::Return {
         self.environment.get(&variable.name)
+    }
+
+    fn visit_assign(&mut self, assign: &Assign) -> Self::Return {
+        let value = self.evaluate(&assign.value)?;
+        self.environment.assign(&assign.name, value.clone())?;
+        Ok(value)
     }
 }
 

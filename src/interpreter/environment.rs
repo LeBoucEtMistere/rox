@@ -25,4 +25,16 @@ impl Environment {
                 name.lexeme
             )))
     }
+
+    pub fn assign(&mut self, name: &Token, value: EvaluatedExpr) -> InterpreterResult<()> {
+        if self.values.contains_key(&name.lexeme) {
+            self.values.insert(name.lexeme.clone(), value);
+            Ok(())
+        } else {
+            Err(InterpreterError::RuntimeError(format!(
+                "Undefined variable '{}'",
+                name.lexeme
+            )))
+        }
+    }
 }

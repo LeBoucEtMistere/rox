@@ -8,6 +8,7 @@ pub enum Expr {
     Grouping(Grouping),
     Literal(Literal),
     Variable(Variable),
+    Assign(Assign),
 }
 
 pub struct Unary {
@@ -36,6 +37,11 @@ pub struct Variable {
     pub name: Token,
 }
 
+pub struct Assign {
+    pub name: Token,
+    pub value: Box<Expr>,
+}
+
 impl Expr {
     pub fn accept<T>(&self, visitor: &mut dyn ExprVisitor<Return = T>) -> T {
         match self {
@@ -44,6 +50,7 @@ impl Expr {
             Expr::Grouping(grouping) => visitor.visit_grouping(grouping),
             Expr::Literal(literal) => visitor.visit_literal(literal),
             Expr::Variable(variable) => visitor.visit_variable(variable),
+            Expr::Assign(assign) => visitor.visit_assign(assign),
         }
     }
 
@@ -93,5 +100,12 @@ impl Expr {
 
     pub fn new_variable(name: Token) -> Self {
         Expr::Variable(Variable { name })
+    }
+
+    pub fn new_assign(name: Token, value: Expr) -> Self {
+        Expr::Assign(Assign {
+            name,
+            value: Box::new(value),
+        })
     }
 }
