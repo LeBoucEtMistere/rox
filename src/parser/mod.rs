@@ -9,19 +9,24 @@ use crate::{
 };
 
 /// Implements the parsing of tokens obtained from the scanner into an AST,
-/// based on the rules of the following grammer:
+/// based on the rules of the following grammar:
 ///
-/// program               → statement* EOF ;
+/// program               → declaration* EOF ;
+///
+/// declaration           → var_decl | statement ;
+/// var_decl              → "var" IDENTIFIER ( "=" expression )? ";" ;
 /// statement             → expression_statement | print_statement ;
 /// expression_statement  → expression ";" ;
 /// print_statement       → print expression  ";" ;
+///
 /// expression            → equality ;
 /// equality              → comparison ( ( "!=" | "==" ) comparison )* ;
 /// comparison            → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 /// term                  → factor ( ( "-" | "+" ) factor )* ;
 /// factor                → unary ( ( "/" | "*" ) unary )* ;
 /// unary                 → ( "!" | "-" ) unary | primary ;
-/// primary               → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
+/// primary               → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")"
+///                         | IDENTIFIER ;
 pub struct Parser {
     /// Holds the list of tokens being parsed
     tokens: Vec<Token>,
@@ -44,7 +49,7 @@ impl Parser {
         let mut errors_encountered: Vec<ParserError> = Vec::new();
 
         while self.peek().token_type != TokenType::Eof {
-            match self.statement() {
+            match self.declaration() {
                 Ok(s) => statements.push(s),
                 Err(e) => errors_encountered.push(e),
             };
@@ -58,6 +63,40 @@ impl Parser {
     }
 
     // Grammar rules
+
+    /// Defines the rule to parse the declaration rule in the grammar:
+    /// declaration           → var_decl | statement ;
+    fn declaration(&mut self) -> Result<Statement, ParserError> {
+        let result = if self.advance_if_token_type_matches(&[TokenType::Var]) {
+            self.var_decl()
+        } else {
+            self.statement()
+        };
+        result.map_err(|err| {
+            // synchronize the internal state to prepare the possible next call to `declaration()`
+            self.synchronize();
+            err
+        })
+    }
+
+    /// Defines the rule to parse the declaration rule in the grammar:
+    /// var_decl              → "var" IDENTIFIER ( "=" expression )? ";" ;
+    fn var_decl(&mut self) -> Result<Statement, ParserError> {
+        let name = self.consume(TokenType::Identifier, "Expected variable name".into())?;
+
+        let initializer = if self.advance_if_token_type_matches(&[TokenType::Equal]) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+
+        self.consume(
+            TokenType::Semicolon,
+            "Expected ';' after variable delcaration".into(),
+        )?;
+
+        Ok(Statement::new_var_statement(name, initializer))
+    }
 
     /// Defines the rule to parse the statement rule in the grammar:
     /// statement             → expression_statement | print_statement ;
@@ -163,7 +202,7 @@ impl Parser {
 
     /// Defines the rule to parse the primary rule in the grammar:
     /// primary        → NUMBER | STRING | "true" | "false" | "nil"
-    ///                | "(" expression ")" ;
+    ///                | "(" expression ")" | IDENTIFIER ;
     fn primary(&mut self) -> Result<Expr, ParserError> {
         if self.advance_if_token_type_matches(&[TokenType::False, TokenType::True]) {
             return Ok(Expr::new_boolean_literal(
@@ -184,6 +223,10 @@ impl Parser {
                     .expect("Token should contain valid number after scanning is done."),
             ));
         }
+        if self.advance_if_token_type_matches(&[TokenType::Identifier]) {
+            return Ok(Expr::new_variable(self.previous().clone()));
+        }
+
         if self.advance_if_token_type_matches(std::slice::from_ref(&TokenType::LeftParen)) {
             let expr = self.expression()?;
             self.consume(TokenType::RightParen, "Expect ')' after expression.".into())?;

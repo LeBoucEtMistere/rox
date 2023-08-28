@@ -1,10 +1,14 @@
+pub mod environment;
 pub mod error;
 
-use self::error::{InterpreterError, InterpreterResult};
+use self::{
+    environment::Environment,
+    error::{InterpreterError, InterpreterResult},
+};
 use crate::{
     ast::{
-        expression::{Binary, Grouping, Literal, Unary},
-        statement::{ExpressionStatement, PrintStatement},
+        expression::{Binary, Grouping, Literal, Unary, Variable},
+        statement::{ExpressionStatement, PrintStatement, VariableStatement},
         visitor::{ExprVisitor, StatementVisitor},
         Expr,
         Statement,
@@ -12,7 +16,7 @@ use crate::{
     token::TokenType,
 };
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum EvaluatedExpr {
     Nil,
     String(String),
@@ -31,7 +35,10 @@ impl ToString for EvaluatedExpr {
     }
 }
 
-pub struct Interpreter {}
+#[derive(Default)]
+pub struct Interpreter {
+    environment: Environment,
+}
 
 impl Interpreter {
     pub fn interpret(&mut self, statements: &[Statement]) -> InterpreterResult<()> {
@@ -236,6 +243,10 @@ impl ExprVisitor for Interpreter {
             Literal::Number(v) => EvaluatedExpr::Number(*v),
         })
     }
+
+    fn visit_variable(&mut self, variable: &Variable) -> Self::Return {
+        self.environment.get(&variable.name)
+    }
 }
 
 impl StatementVisitor for Interpreter {
@@ -249,6 +260,15 @@ impl StatementVisitor for Interpreter {
 
     fn visit_expression(&mut self, statement: &ExpressionStatement) -> Self::Return {
         self.evaluate(&statement.expr)?;
+        Ok(())
+    }
+
+    fn visit_variable(&mut self, variable: &VariableStatement) -> Self::Return {
+        let mut value = EvaluatedExpr::Nil;
+        if let Some(init) = variable.initializer.as_ref() {
+            value = self.evaluate(init)?;
+        }
+        self.environment.define(variable.name.lexeme.clone(), value);
         Ok(())
     }
 }

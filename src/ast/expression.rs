@@ -7,6 +7,7 @@ pub enum Expr {
     Binary(Binary),
     Grouping(Grouping),
     Literal(Literal),
+    Variable(Variable),
 }
 
 pub struct Unary {
@@ -31,6 +32,10 @@ pub enum Literal {
     Number(f64),
 }
 
+pub struct Variable {
+    pub name: Token,
+}
+
 impl Expr {
     pub fn accept<T>(&self, visitor: &mut dyn ExprVisitor<Return = T>) -> T {
         match self {
@@ -38,6 +43,7 @@ impl Expr {
             Expr::Binary(binary) => visitor.visit_binary(binary),
             Expr::Grouping(grouping) => visitor.visit_grouping(grouping),
             Expr::Literal(literal) => visitor.visit_literal(literal),
+            Expr::Variable(variable) => visitor.visit_variable(variable),
         }
     }
 
@@ -83,5 +89,9 @@ impl Expr {
         Expr::Grouping(Grouping {
             expr: Box::new(expr),
         })
+    }
+
+    pub fn new_variable(name: Token) -> Self {
+        Expr::Variable(Variable { name })
     }
 }

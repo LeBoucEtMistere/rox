@@ -7,7 +7,7 @@ use std::{
 use camino::Utf8PathBuf;
 
 use crate::{
-    ast::visitor::ASTPrettyPrinter,
+    // ast::visitor::ASTPrettyPrinter,
     error::*,
     interpreter::Interpreter,
     parser::Parser,
@@ -17,6 +17,7 @@ use crate::{
 #[derive(Default)]
 pub struct Rox {
     had_error: bool,
+    interpreter: Interpreter,
 }
 
 impl Rox {
@@ -84,10 +85,9 @@ impl Rox {
         let p = Parser::new(tokens);
         let ast = self.handle_errors(p.parse())?;
 
-        println!("ast: {} \n", ASTPrettyPrinter::new().print(&ast));
+        // println!("ast: {} \n", ASTPrettyPrinter::new().print(&ast));
 
-        let mut i = Interpreter {};
-        if let Err(e) = i.interpret(&ast) {
+        if let Err(e) = self.interpreter.interpret(&ast) {
             self.had_error = true;
             eprintln!("{}", e);
         }
