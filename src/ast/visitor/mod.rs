@@ -4,7 +4,7 @@
 
 use super::{
     expression::{Assign, Binary, Grouping, Literal, Unary, Variable},
-    statement::{ExpressionStatement, PrintStatement, VariableStatement},
+    statement::{BlockStatement, ExpressionStatement, PrintStatement, VariableStatement},
 };
 
 /// Base trait to define a visitor for the AST
@@ -34,4 +34,6 @@ pub trait StatementVisitor {
     fn visit_expression(&mut self, expression: &ExpressionStatement) -> Self::Return;
     /// visit a variable statement
     fn visit_variable(&mut self, variable: &VariableStatement) -> Self::Return;
+    /// visit a block statement
+    fn visit_block(&mut self, block: &BlockStatement) -> Self::Return;
 }

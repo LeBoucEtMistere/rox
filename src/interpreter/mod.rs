@@ -1,6 +1,8 @@
 pub mod environment;
 pub mod error;
 
+use std::mem;
+
 use self::{
     environment::Environment,
     error::{InterpreterError, InterpreterResult},
@@ -8,7 +10,7 @@ use self::{
 use crate::{
     ast::{
         expression::{Assign, Binary, Grouping, Literal, Unary, Variable},
-        statement::{ExpressionStatement, PrintStatement, VariableStatement},
+        statement::{BlockStatement, ExpressionStatement, PrintStatement, VariableStatement},
         visitor::{ExprVisitor, StatementVisitor},
         Expr,
         Statement,
@@ -52,6 +54,28 @@ impl Interpreter {
     }
     fn execute(&mut self, statement: &Statement) -> InterpreterResult<()> {
         statement.accept(self)
+    }
+
+    fn execute_block(
+        &mut self,
+        statements: &[Statement],
+        environment: Environment,
+    ) -> InterpreterResult<()> {
+        let previous = mem::replace(&mut self.environment, environment);
+        self.environment.set_enclosing(previous);
+
+        for statement in statements.iter() {
+            self.execute(statement).map_err(|err| {
+                // in case any execute statement fails, let's unwind the environment properly
+                let previous = self.environment.take_enclosing();
+                self.environment = previous;
+                err
+            })?;
+        }
+
+        let previous = self.environment.take_enclosing();
+        self.environment = previous;
+        Ok(())
     }
 }
 
@@ -276,5 +300,9 @@ impl StatementVisitor for Interpreter {
         }
         self.environment.define(variable.name.lexeme.clone(), value);
         Ok(())
+    }
+
+    fn visit_block(&mut self, block: &BlockStatement) -> Self::Return {
+        self.execute_block(&block.statements, Environment::default())
     }
 }

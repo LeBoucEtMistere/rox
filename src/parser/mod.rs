@@ -15,12 +15,13 @@ use crate::{
 ///
 /// declaration           → var_decl | statement ;
 /// var_decl              → "var" IDENTIFIER ( "=" expression )? ";" ;
-/// statement             → expression_statement | print_statement ;
+/// statement             → expression_statement | print_statement | block ;
 /// expression_statement  → expression ";" ;
 /// print_statement       → print expression  ";" ;
+/// block                 → "{" declaration* "}" ;
 ///
 /// expression            → assignment ;
-/// assignment           → IDENTIFIER "=" assignment | equality ;
+/// assignment            → IDENTIFIER "=" assignment | equality ;
 /// equality              → comparison ( ( "!=" | "==" ) comparison )* ;
 /// comparison            → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 /// term                  → factor ( ( "-" | "+" ) factor )* ;
@@ -100,10 +101,12 @@ impl Parser {
     }
 
     /// Defines the rule to parse the statement rule in the grammar:
-    /// statement             → expression_statement | print_statement ;
+    /// statement             → expression_statement | print_statement | block ;
     fn statement(&mut self) -> Result<Statement, ParserError> {
         if self.advance_if_token_type_matches(&[TokenType::Print]) {
             self.print_statement()
+        } else if self.advance_if_token_type_matches(&[TokenType::LeftBrace]) {
+            self.block()
         } else {
             self.expression_statement()
         }
@@ -123,6 +126,17 @@ impl Parser {
         let expr = self.expression()?;
         self.consume(TokenType::Semicolon, "Expect ';' after expression.".into())?;
         Ok(Statement::new_expression_statement(expr))
+    }
+
+    /// Defines the rule to parse the block rule in the grammar:
+    /// block  → "{" declaration* "}" ;
+    fn block(&mut self) -> Result<Statement, ParserError> {
+        let mut statements = Vec::new();
+        while !self.check(TokenType::RightBrace) && self.peek().token_type != TokenType::Eof {
+            statements.push(self.declaration()?);
+        }
+        self.consume(TokenType::RightBrace, "Expect '}' after block".to_owned())?;
+        Ok(Statement::new_block_statement(statements))
     }
 
     /// Defines the rule to parse the expression rule in the grammar:
